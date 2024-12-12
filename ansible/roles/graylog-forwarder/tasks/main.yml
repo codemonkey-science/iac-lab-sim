@@ -1,4 +1,7 @@
 ---
+dependencies:
+  - role: graylog
+
 - name: Install rsyslog
   apt:
     name: rsyslog
