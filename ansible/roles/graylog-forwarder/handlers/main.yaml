@@ -3,5 +3,5 @@
   become: true
   become_user: root
   service:
-    name: rsyslogd
+    name: rsyslog
     state: restarted
