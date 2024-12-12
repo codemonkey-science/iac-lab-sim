@@ -1,0 +1,37 @@
+---
+- name: Check if Docker is already installed
+  command: which docker
+  register: docker_check
+  ignore_errors: yes
+  changed_when: false
+
+- name: Install Docker if not present
+  apt:
+    name: docker.io
+    state: present
+  when: docker_check.rc != 0
+
+- name: Install Docker Compose
+  get_url:
+    url: "https://github.com/docker/compose/releases/download/v2.26.1/docker-compose-linux-{{ ansible_architecture }}"
+    dest: /usr/local/bin/docker-compose
+    mode: '0755'
+
+- name: Create graylog user
+  user:
+    name: graylog
+    state: present
+
+- name: Add graylog user to docker group
+  user:
+    name: graylog
+    groups: docker
+    append: yes
+
+- name: Ensure /opt/graylog directory exists
+  file:
+    path: /opt/graylog
+    state: directory
+    owner: graylog
+    group: graylog
+    mode: '0755'

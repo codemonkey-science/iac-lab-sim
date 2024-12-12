@@ -1,0 +1,65 @@
+name: CI/CD Pipeline (self-hosted)
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  run-playbook:
+    runs-on: self-hosted
+    container: ghcr.io/codemonkey-science/ansible-ci-image:latest
+
+    env:
+      HOME: /home/ansible
+      TMPDIR: /tmp
+      ANSIBLE_BECOME_PASS: ${{ secrets.ANSIBLE_BECOME_PASS }}
+      ANSIBLE_HOST_KEY_CHECKING: False
+      ANSIBLE_CONFIG: ansible/ansible.cfg
+      ANSIBLE_LOCAL_TEMP: /home/ansible/.ansible/tmp
+      CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+      CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_API_KEY }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Write private key to disk
+        run: |
+          mkdir -p /home/ansible/.ssh
+          echo "${{ secrets.PRIVATE_KEY }}" | tee /home/ansible/.ssh/id_rsa > /dev/null
+          chmod 600 /home/ansible/.ssh/id_rsa
+
+      - name: Set up Ansible temp folders
+        run: |
+          mkdir -p /home/ansible/.ansible/tmp
+          chmod 700 /home/ansible/.ansible/tmp
+          mkdir -p /home/ansible/.ansible/cp
+          chmod 700 /home/ansible/.ansible/cp
+        
+      - name: Run Ansible Playbook
+        continue-on-error: true
+        run: |
+          cd ~
+          . /home/ansible/ansible-env/bin/activate
+          cd $GITHUB_WORKSPACE
+          ansible-playbook -i ansible/inventory ansible/site.yml
+
+      - name: Remove private key from disk
+        if: always() 
+        run: |
+          if [ -f /home/ansible/.ssh/id_rsa ]; then
+            rm -f /home/ansible/.ssh/id_rsa || { echo "Failed to delete private key"; exit 1; }
+            if [ ! -f /home/ansible/.ssh/id_rsa ]; then
+              echo "Private key successfully deleted"
+            else
+              echo "Failed to delete private key"; exit 2;
+            fi
+          else
+            echo "Private key does not exist for some reason. Nothing to delete. Please investigate."
+            exit 3
+          fi
